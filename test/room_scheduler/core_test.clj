@@ -11,111 +11,9 @@
   [check]
   (is (false? (:ex-handled @check))))
 
-
-
-;(defrecord StubParseHoldRequest []
-;  ParseHold
-;  (parse-hold-request [stub-parser request]
-;    (when request
-;      true)))
-;
-;(defrecord StubHoldRequestParserThrowsEx []
-;  ParseBooking
-;  (parse-booking-request [stub-parser request] (throw-state-exception nil)))
-;
-;(defrecord StubHoldExceptionHandler [check]
-;  HandleHoldPartyException
-;  (handle-hold-ex [stub-handler ex]
-;    (swap! (:check stub-handler) assoc :ex-handled true)))
-;
-;(defrecord StubHoldTimeslots [check]
-;  HoldOpenTimeslots
-;  (hold-openings [stub-holder request]
-;    (when request
-;      (swap! (:check stub-holder) assoc :openings-held true))))
-;
-;(defrecord StubHoldTimeslotsFails [check]
-;  HoldOpenTimeslots
-;  (hold-openings [stub-holder request] nil))
-;
-;(defrecord StubHoldConfirmer [check]
-;  ConfirmHold
-;  (confirm-hold [stub-confirmer hold]
-;    (:openings-held @(:check stub-confirmer))))
-;
-;(defrecord StubHoldResponse []
-;  HoldRequestResponse
-;  (respond-successful-hold [stub-responder request]
-;    {:held-timeslot true})
-;  (respond-failed-hold [stub-responder request]
-;    {:held-timeslot false}))
-
-
-;(defrecord StubWebRespondHoldSlots [responses]
-;  HoldRequestResponse
-;  (respond-successful-hold [stub-responder request]
-;    {:body (:hold-success (:responses stub-responder))})
-;  (respond-failed-hold [stub-responder request]
-;    {:body (:hold-failure (:responses stub-responder))}))
-
-;(defn hold-test-check
-;  []
-;  (atom {:ex-handled false
-;         :openings-held false}))
-;
-;(defn open-timeslot-not-held? [result]
-;  (is (false? (:held-timeslot result))))
-;
-;(defn open-timeslot-held? [result]
-;  (is (true? (:held-timeslot result))))
-;
-;(defn hold-request-parser-throws-ex []
-;  (->StubHoldRequestParserThrowsEx))
-;
-;(defn hold-timeslot-service-fails [check]
-;  (->StubHoldTimeslotsFails check))
-;
-;(defn build-test-holding-services
-;  [check & {:keys [parser holder confirmer responder ex-handler]
-;            :or {parser (->StubParseHoldRequest)
-;                 holder (->StubHoldTimeslots check)
-;                 confirmer (->StubHoldConfirmer check)
-;                 responder (->StubHoldResponse)
-;                 ex-handler (->StubHoldExceptionHandler check)}}]
-;  (build-holding-services {}
-;    :parser parser
-;    :holder holder
-;    :confirmer confirmer
-;    :responder responder
-;    :ex-handler ex-handler))
-;
-;(deftest test-hold-open-timeslots-catches-exceptions
-;  (let [check (hold-test-check)
-;        services (build-test-holding-services check
-;                  :parser (hold-request-parser-throws-ex))
-;        response (hold-open-timeslots {:services services})]
-;    (open-timeslot-not-held? response)
-;    (call-exception-handled? check)))
-;
-;(deftest test-hold-open-timeslots-failed-hold
-;  (let [check (hold-test-check)
-;        services (build-test-holding-services check
-;                   :holder (hold-timeslot-service-fails check))
-;        response (hold-open-timeslots {:services services})]
-;    (open-timeslot-not-held? response)
-;    (no-exception-to-handle? check)))
-;
-;(deftest test-hold-open-timeslots-successful-hold
-;  (let [check (hold-test-check)
-;        services (build-test-holding-services check)
-;        response (hold-open-timeslots {:services services})]
-;    (open-timeslot-held? response)
-;    (no-exception-to-handle? check)))
-;
-
-(deftest test-lookup-party-options
-  (is (some? (lookup-party-options nil))))
-
+(defn options-test-check
+  []
+  (atom {:ex-handled false}))
 
 (defrecord StubParseBookingRequest []
   ParseBooking
@@ -128,34 +26,109 @@
   (parse-booking-request [nil-parser request] (throw-state-exception nil)))
 
 
-
 (defrecord StubExceptionBookParty [check]
     BookParty
-    (book-party [stub-booker party-info]  (throw-state-exception nil)))
+    (reserve-party-options [stub-booker party-info]
+      (when party-info
+        (swap! (:check stub-booker) assoc :reserved-options true)))
+
+    (book-party-options [stub-booker party-info]  (throw-state-exception nil)))
 
 (defrecord StubBookPartyFailsSilently [check]
   BookPartyRoom
+  (reserve-party-room [stub-booker party-info] nil)
   (book-party-room [stub-booker party-info] nil)
   BookParty
-  (book-party [stub-booker party-info] nil))
+  (reserve-party-options [stub-booker party-info]
+    (when party-info))
+
+  (book-party-options [stub-booker party-info] nil))
+
+
+(defrecord StubPartyPaymentThrowsEx []
+  PartyPayment
+  (room-fee-only? [stub-payer party-info] (throw-state-exception nil))
+  (process-room-fee [stub-payer party-info] (throw-state-exception nil))
+  (process-room-and-options [stub-payer party-info] (throw-state-exception nil)))
+
+
+
+(defrecord StubPartyPaymentRoomFeeOnly [check]
+  PartyPayment
+  (room-fee-only? [stub-payer party-info] true)
+  (process-room-fee [stub-payer party-info]
+    (when party-info
+       (swap! (:check stub-payer) assoc :room-fee-paid true)))
+  (process-room-and-options [stub-payer party-info] (throw-state-exception nil)))
+
+(defrecord StubPartyPaymentProcessTotal [check]
+  PartyPayment
+  (room-fee-only? [stub-payer party-info] false)
+  (process-room-fee [stub-payer party-info]  (throw-state-exception nil))
+  (process-room-and-options [stub-payer party-info]
+    (when party-info
+       (do (swap! (:check stub-payer) assoc :room-fee-paid true)
+           (swap! (:check stub-payer) assoc :options-paid true)))))
+
+(defrecord StubBookPartyRoomReserveThrowsEx [check]
+  BookPartyRoom
+  (reserve-party-room [stub-booker party-info]
+    (throw-state-exception nil))
+
+  (book-party-room [stub-booker party-info]
+    (when party-info
+      (swap! (:check stub-booker) assoc :booked-room true))))
+
+
+(defrecord StubBookPartyReserveOptionsThrowsEx [check]
+ BookParty
+  (reserve-party-options [stub-booker party-info]  (throw-state-exception nil))
+
+  (book-party-options [stub-booker party-info]
+    (when party-info
+      (swap! (:check stub-booker) assoc :booked-options true))))
+
+
 
 (defrecord StubBookParty [check]
   BookPartyRoom
+  (reserve-party-room [stub-booker party-info]
+    (when party-info
+      (swap! (:check stub-booker) assoc :reserved-room true)))
+
   (book-party-room [stub-booker party-info]
     (when party-info
       (swap! (:check stub-booker) assoc :booked-room true)))
 
   BookParty
-  (book-party [stub-booker party-info]
+  (reserve-party-options [stub-booker party-info]
+    (when party-info
+      (swap! (:check stub-booker) assoc :reserved-options true)))
+
+  (book-party-options [stub-booker party-info]
    (when party-info
-     (swap! (:check stub-booker) assoc :booked-party true))))
+     (swap! (:check stub-booker) assoc :booked-options true))))
 
 
-(defrecord StubConfirmParty [check]
+(defrecord StubConfirmPartyTimeSlotNotAvailable [check]
   ConfirmParty
+  (timeslot-available? [confirmer party-info] false)
   (booked? [confirmer party-info]
    (when party-info
-     (:booked-party @(:check confirmer))))
+     (:booked-room @(:check confirmer))))
+  (confirm-booking [confirmer party-info]
+   (when party-info
+    {:message "confirmation msg"}))
+  (confirm-failure [confirmation-service party-info]
+   (when party-info
+    (ex-info "booking failed" {:bad 1}))))
+
+(defrecord StubConfirmPartyTimeSlotAvailable [check]
+  ConfirmParty
+  (timeslot-available? [confirmer party-info] true)
+  (booked? [confirmer party-info]
+   (when party-info
+     (:booked-room @(:check confirmer))))
   (confirm-booking [confirmer party-info]
    (when party-info
     {:message "confirmation msg"}))
@@ -179,21 +152,33 @@
     (swap! (:check exception-service) assoc :ex-handled true)))
 
 (defn booking-test-check []
-  (atom {:booked-party false
+  (atom {:reserved-room false
+         :reserved-options false
+         :booked-options false
          :booked-room false
+         :room-fee-paid false
+         :options-paid false
          :ex-handled false}))
 
+
 (defn build-test-booking-services
-  ([check party-booker]
-   (build-test-booking-services check party-booker (->StubParseBookingRequest)))
-  ([check party-booker parser]
-   (-> {}
-     (add-booking-confirmation-service (->StubConfirmParty check))
-     (add-booking-request-parser-service parser)
-     (add-booking-exception-service (->StubBookingExceptionHandler check))
-     (add-booking-response-service (->StubViewBookingResponse))
-     (add-party-room-service (->StubBookParty check))
-     (add-party-service party-booker))))
+  [check & {:keys [parser room-booker party-booker payer confirmer responder ex-handler]
+            :or {room-booker (->StubBookParty check)
+                 party-booker (->StubBookParty check)
+                 confirmer  (->StubConfirmPartyTimeSlotAvailable check)
+                 payer (->StubPartyPaymentRoomFeeOnly check)
+                 parser (->StubParseBookingRequest)
+                 responder (->StubViewBookingResponse)
+                 ex-handler  (->StubBookingExceptionHandler check)}}]
+  (build-booking-services {}
+    :parser parser
+    :payer payer
+    :confirmer confirmer
+    :ex-handler ex-handler
+    :responder responder
+    :room-booker room-booker
+    :party-booker party-booker))
+
 
 (defn no-booking-confirmed? [result]
   (is (false? (:confirmed result))))
@@ -207,18 +192,54 @@
 (defn booking-confirmed? [result]
   (is (true? (:confirmed result))))
 
-(defn party-package-booked? [check]
-  (is (true? (:booked-party @check))))
+
+
+(defn party-options-not-booked? [check]
+  (is (false? (:booked-options @check))))
+
+(defn party-options-booked? [check]
+  (is (true? (:booked-options @check))))
+
+
+(defn party-room-not-reserved? [check]
+  (is (false? (:reserved-room @check))))
+
+(defn party-room-reserved? [check]
+  (is (true? (:reserved-room @check))))
+
+(defn party-options-not-reserved? [check]
+  (is (false? (:reserved-options @check))))
+
+(defn party-options-reserved? [check]
+  (is (true? (:reserved-options @check))))
+
+
+(defn party-room-not-paid? [check]
+  (is (false? (:room-fee-paid @check))))
+
+(defn party-room-paid? [check]
+  (is (true? (:room-fee-paid @check))))
+
+(defn party-options-paid? [check]
+  (is (true? (:options-paid @check))))
+
+(defn party-options-not-paid? [check]
+  (is (false? (:options-paid @check))))
 
 (defn party-room-booked? [check]
   (is (true? (:booked-room @check))))
+
+(defn party-room-not-booked? [check]
+  (is (false? (:booked-room @check))))
+
+
 
 (defn booking-result-confirmation-message? [result]
   (is (= "confirmation msg" (:message result))))
 
 
 (defn test-book-party [services]
-  (book-room {:services services}))
+  (book-party {:services services}))
 
 (defn mock-book-pkg-service-given-some-books-party-package [check]
   (->StubBookParty check))
@@ -235,43 +256,114 @@
 (defn mock-book-pkg-service-given-any-fails-silently [check]
   (->StubBookPartyFailsSilently check))
 
-(deftest test-book-room-catches-parse-exceptions
+(deftest test-book-party-catches-parse-exceptions
   (let [check (booking-test-check)
         pkg-booker (mock-book-pkg-service-given-some-books-party-package check)
         parser (mock-parse-book-request-given-any-throws-exception)
-        booking-services (build-test-booking-services check pkg-booker parser)
+        booking-services (build-test-booking-services check :parser parser)
         result (test-book-party booking-services)]
+    (party-room-not-reserved? check)
+    (party-options-not-reserved? check)
     (no-booking-confirmed? result)
     (call-exception-handled? check)))
 
-(deftest test-book-room-catches-party-booking-exceptions
+(deftest test-book-party-fails-if-room-timeslots-not-available
+  (let [check (booking-test-check)
+        confirmer (->StubConfirmPartyTimeSlotNotAvailable check)
+        pkg-booker (->StubBookParty check)
+        booking-services (build-test-booking-services check :confirmer confirmer)
+        result (test-book-party booking-services)]
+      (party-room-not-reserved? check)
+      (party-options-not-reserved? check)
+      (no-booking-confirmed? result)
+      (no-exception-to-handle? check)
+      (booking-failed-result-message? result)))
+
+(deftest test-book-party-fails-if-reserve-room-fails
+  (let [check (booking-test-check)
+        room-booker (->StubBookPartyRoomReserveThrowsEx check)
+        booking-services (build-test-booking-services check :room-booker room-booker)
+        result (test-book-party booking-services)]
+      (party-room-not-reserved? check)
+      (party-options-not-reserved? check)
+      (no-booking-confirmed? result)
+      (call-exception-handled? check)
+      (exception-thrown-result-message? result)))
+
+(deftest test-book-party-fails-if-reserve-options-fails
+  (let [check (booking-test-check)
+        options-booker (->StubBookPartyReserveOptionsThrowsEx check)
+        booking-services (build-test-booking-services check :party-booker options-booker)
+        result (test-book-party booking-services)]
+      (party-room-reserved? check)
+      (party-options-not-reserved? check)
+      (no-booking-confirmed? result)
+      (call-exception-handled? check)
+      (exception-thrown-result-message? result)))
+
+(deftest test-book-party-fails-if-process-room-fee-payment-fails
+  (let [check (booking-test-check)
+        payer (->StubPartyPaymentThrowsEx)
+        booking-services (build-test-booking-services check :payer payer)
+        result (test-book-party booking-services)]
+      (party-room-reserved? check)
+      (party-options-reserved? check)
+      (no-booking-confirmed? result)
+      (call-exception-handled? check)
+      (exception-thrown-result-message? result)))
+
+(deftest test-book-party-fails-if-party-booking-fails
   (let [check (booking-test-check)
         pkg-booker (mock-book-service-given-any-throws-exception check)
-        booking-services (build-test-booking-services check pkg-booker)
+        booking-services (build-test-booking-services check :room-booker pkg-booker)
         result (test-book-party booking-services)]
+    (party-room-not-reserved? check)
+    (party-options-not-reserved? check)
     (no-booking-confirmed? result)
     (call-exception-handled? check)
     (exception-thrown-result-message? result)))
 
-(deftest test-book-room-book-party-package-fails-silently
+(deftest test-book-party-fails-if-booking-fails-silently
   (let [check (booking-test-check)
         pkg-booker (mock-book-pkg-service-given-any-fails-silently check)
-        booking-services (build-test-booking-services check pkg-booker)
+        booking-services (build-test-booking-services check :room-booker pkg-booker :party-booker pkg-booker)
         result (test-book-party booking-services)]
     (no-booking-confirmed? result)
     (no-exception-to-handle? check)
     (booking-failed-result-message? result)))
 
-(deftest test-book-room-book-party-confirms-sucessful-booking
+(deftest test-book-party-process-room-fee-if-room-fee-only-selected
   (let [check (booking-test-check)
-        pkg-booker (->StubBookParty check)
-        booking-services (build-test-booking-services check pkg-booker)
+        payer (->StubPartyPaymentRoomFeeOnly check)
+        booking-services (build-test-booking-services check :payer payer)
         result (test-book-party booking-services)]
+      (party-room-reserved? check)
+      (party-options-reserved? check)
+      (party-room-paid? check)
+      (party-room-booked? check)
+      (party-options-not-paid? check)
+      (party-options-not-booked? check)
+      (no-exception-to-handle? check)
+      (booking-confirmed? result)
+      (booking-result-confirmation-message? result)))
+
+
+(deftest test-book-party-process-room-and-options-if-total-selected
+  (let [check (booking-test-check)
+        payer (->StubPartyPaymentProcessTotal check)
+        booking-services (build-test-booking-services check :payer payer)
+        result (test-book-party booking-services)]
+    (party-room-reserved? check)
+    (party-options-reserved? check)
+    (party-room-paid? check)
+    (party-room-booked? check)
+    (party-options-paid? check)
     (booking-confirmed? result)
-    (party-package-booked? check)
+    (party-options-booked? check)
     (party-room-booked? check)
     (no-exception-to-handle? check)
     (booking-result-confirmation-message? result)))
+
 
 
 (deftest test-scheduler-app-get-open-timeslots
@@ -295,3 +387,14 @@
     (is (map? response))
     (is (= 200 (:status response)))
     (is (= (:hold-success expected-response) (:body response)))))
+
+(deftest test-scheduler-app-lookup-party-options
+  (let [check (options-test-check)
+        expected-response {:party-options "options" :options-failure "options fail"}
+        responder (->StubWebPartyOptionsResponse expected-response)
+        services (build-test-options-services check :responder responder)
+        test-app (wrap-services scheduler-app services)
+        response (test-app {:request-method :get :uri "/options/"})]
+    (is (map? response))
+    (is (= 200 (:status response)))
+    (is (= (:party-options expected-response) (:body response)))))

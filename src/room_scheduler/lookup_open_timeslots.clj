@@ -1,5 +1,6 @@
 (ns room-scheduler.lookup-open-timeslots)
 
+;the timeslots returned include the cost for that slot
 (defprotocol LookupOpenTimeSlots
   (get-openings [lookup-service lookup-request]))
 

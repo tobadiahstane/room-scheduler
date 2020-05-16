@@ -1,7 +1,6 @@
 (ns room-scheduler.hold-open-timeslots)
 
 
-
 (defprotocol ParseHold
   (parse-hold-request [parser-service request]))
 

@@ -1,6 +1,6 @@
 (ns room-scheduler.mock-services
   (:require
-   [room-scheduler.lookup-open-timeslots :as lookup
+   [room-scheduler.lookup-open-timeslots :as lookup-times
                                          :refer [LookupOpenTimeSlots
                                                  ParseLookupRequest
                                                  RespondWithOpenTimeSlots
@@ -11,7 +11,13 @@
                                                ConfirmHold
                                                HoldRequestResponse
                                                HandleHoldPartyException
-                                               build-holding-services]]))
+                                               build-holding-services]]
+
+   [room-scheduler.lookup-party-options :as lookup-options
+                                        :refer [ParsePartyOptionsRequest
+                                                LookUpPartyOptions
+                                                RespondWithPartyOptions
+                                                HandleLookupPartyOptionsException]]))
 (defn throw-state-exception [request]
   (throw (IllegalStateException. "exception thrown")))
 
@@ -119,7 +125,7 @@
                  parser (mock-parser-given-some-returns-true)
                  responder (mock-responder-given-true-return-true)
                  ex-handler (mock-ex-handler-updates-check-when-handled check)}}]
-  (lookup/build-lookup-services {}
+  (lookup-times/build-lookup-services {}
     :parser parser
     :looker looker
     :responder responder
@@ -209,3 +215,64 @@
     :confirmer confirmer
     :responder responder
     :ex-handler ex-handler))
+
+
+(defrecord StubParsePartyOptionsRequest []
+  ParsePartyOptionsRequest
+  (parse-party-options-request [stub-parser request]
+    (when request
+      true)))
+
+(defrecord StubParsePartyOptionsRequestThrowsEx []
+  ParsePartyOptionsRequest
+  (parse-party-options-request [stub-parser request] (throw-state-exception nil)))
+
+(defrecord StubPartyOptionsExceptionHandler [check]
+  HandleLookupPartyOptionsException
+  (handle-options-ex [stub-handler ex]
+    (swap! (:check stub-handler) assoc :ex-handled true)))
+
+(defrecord StubLookUpPartyOptions []
+  LookUpPartyOptions
+  (get-options [stub-lookup request]
+    (when request
+     true)))
+
+(defrecord StubLookUpPartyOptionsException []
+  LookUpPartyOptions
+  (get-options [stub-holder request]
+    (throw-state-exception nil)))
+
+(defrecord StubPartyOptionsResponse []
+  RespondWithPartyOptions
+  (options-response [stub-responder options request]
+    {:party-options true})
+  (respond-failed [stub-responder ex request]
+    {:party-options false}))
+
+(defrecord StubWebPartyOptionsResponse [responses]
+  RespondWithPartyOptions
+  (options-response [stub-responder options request]
+    {:body (:party-options (:responses stub-responder))})
+  (respond-failed [stub-responder ex request]
+    {:body (:options-failure (:responses stub-responder))}))
+
+
+(defn options-request-parser-throws-ex []
+  (->StubParsePartyOptionsRequestThrowsEx))
+
+(defn lookup-party-options-service-fails []
+  (->StubLookUpPartyOptionsException))
+
+(defn build-test-options-services
+  [check & {:keys [parser looker responder ex-handler]
+            :or {parser (->StubParsePartyOptionsRequest)
+                 looker (->StubLookUpPartyOptions)
+                 responder (->StubPartyOptionsResponse)
+                 ex-handler (->StubPartyOptionsExceptionHandler check)}}]
+  (lookup-options/build-party-options-lookup-services {}
+    :parser parser
+    :looker looker
+    :responder responder
+    :ex-handler ex-handler))
+;
