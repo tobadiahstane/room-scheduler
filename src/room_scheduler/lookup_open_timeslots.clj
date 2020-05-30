@@ -15,36 +15,36 @@
 (defprotocol HandleLookupOpenSlotsException
   (handle-lookup-ex [exception-service ex]))
 
-(defn add-open-timeslot-lookup-service [services otl-service]
-  (assoc services :lookup-service otl-service))
+(defn add-open-timeslot-lookup-service [services service]
+  (assoc services ::lookup-service service))
 
-(defn add-open-timeslot-request-parser-service [services bp-service]
-  (assoc services :parser-service bp-service))
+(defn add-open-timeslot-request-parser-service [services service]
+  (assoc services ::parser-service service))
 
-(defn add-open-timeslot-response-service [services otr-service]
-  (assoc services :response-service otr-service))
+(defn add-open-timeslot-response-service [services service]
+  (assoc services ::response-service service))
 
-(defn add-open-timeslot-exception-service [services ex-service]
-  (assoc services :exception-service ex-service))
+(defn add-open-timeslot-exception-service [services service]
+  (assoc services ::exception-service service))
 
 
 (defn parse-lookup [services lookup-request]
-  (let [iparse (:parser-service services)]
+  (let [iparse (::parser-service services)]
     (parse-lookup-request iparse lookup-request)))
 
 (defn lookup-open-slots [services party-info]
-  (let [ilookup (:lookup-service services)]
+  (let [ilookup (::lookup-service services)]
     (get-openings ilookup party-info)))
 
 (defn respond-with-results [services lookup-results lookup-request]
-  (let [irespond (:response-service services)]
+  (let [irespond (::response-service services)]
     (if lookup-results
        (respond-with-openings irespond lookup-results lookup-request)
        (respond-with-no-openings irespond lookup-request))))
 
 (defn lookup-exception [services failure lookup-request]
-  (let [ihandle (:exception-service services)
-        irespond (:response-service services)]
+  (let [ihandle (::exception-service services)
+        irespond (::response-service services)]
     (handle-lookup-ex ihandle failure)
     (respond-with-lookup-failure irespond failure lookup-request)))
 

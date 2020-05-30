@@ -23,36 +23,37 @@
    use the hold parser service to pull details about the timeslots
    to hold from the request."
   [services request]
-  (let [parser (:parser-service services)]
+  (let [parser (::parser-service services)]
     (parse-hold-request parser request)))
 
 (defn hold-timeslots
   "Given map of scheduling application services and timeslots to hold,
    use the hold service to place a hold for requested timeslots."
   [services timeslots]
-  (let [holder (:holding-service services)]
+  (let [holder (::holding-service services)]
      (hold-openings holder timeslots)))
 
 (defn respond-to-hold [services timeslots request]
-  (let [confirmer (:confirmation-service services)
-        responder (:response-service services)]
+  (let [confirmer (::confirmation-service services)
+        responder (::response-service services)]
     (if (confirm-hold confirmer timeslots)
       (respond-successful-hold responder request)
       (respond-failed-hold responder request))))
 
 (defn hold-exception [services ex request]
-  (let [ex-handler (:exception-service services)
-        responder (:response-service services)]
+  (let [ex-handler (::exception-service services)
+        responder (::response-service services)]
     (handle-hold-ex ex-handler ex)
     (respond-failed-hold responder request)))
 
+;TODO: split out assoc functions.
 (defn build-holding-services
   "Given a map of services and the required holding services,
    add the hold services."
   [services & {:keys [parser holder confirmer responder ex-handler]}]
   (-> services
-    (assoc :parser-service parser)
-    (assoc :holding-service holder)
-    (assoc :confirmation-service confirmer)
-    (assoc :response-service responder)
-    (assoc :exception-service ex-handler)))
+    (assoc ::parser-service parser)
+    (assoc ::holding-service holder)
+    (assoc ::confirmation-service confirmer)
+    (assoc ::response-service responder)
+    (assoc ::exception-service ex-handler)))

@@ -6,8 +6,7 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
 
                 ;web serving
-                 [ring/ring-core "1.8.0"]
-                 [ring/ring-jetty-adapter "1.8.0"]
+                 [ring "1.8.1"]
                  [compojure "1.6.1"]]
 
   :main ^:skip-aot room-scheduler.core

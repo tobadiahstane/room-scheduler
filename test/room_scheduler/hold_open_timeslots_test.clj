@@ -1,15 +1,8 @@
 (ns room-scheduler.hold-open-timeslots-test
   (:require [clojure.test :refer :all]
             [room-scheduler.core :refer :all]
-            [room-scheduler.mock-services :refer :all]))
-
-(defn call-exception-handled?
-  [check]
-  (is (true? (:ex-handled @check))))
-
-(defn no-exception-to-handle?
-  [check]
-  (is (false? (:ex-handled @check))))
+            [room-scheduler.mock-services :refer :all]
+            [room-scheduler.test_functions :refer :all]))
 
 (defn open-timeslot-not-held? [result]
   (is (false? (:held-timeslot result))))
@@ -21,7 +14,7 @@
 
 (deftest test-hold-open-timeslots-catches-exceptions
   (let [check (hold-test-check)
-        services (build-test-holding-services check
+        services (build-test-holding-services {} check
                   :parser (mock-hold-request-parser-throws-ex))
         response (hold-open-timeslots {:services services})]
     (open-timeslot-not-held? response)
@@ -29,7 +22,7 @@
 
 (deftest test-hold-open-timeslots-failed-hold
   (let [check (hold-test-check)
-        services (build-test-holding-services check
+        services (build-test-holding-services {} check
                    :holder (mock-timeslot-holder-given-some-update-check-failure check))
         response (hold-open-timeslots {:services services})]
     (open-timeslot-not-held? response)
@@ -37,7 +30,7 @@
 
 (deftest test-hold-open-timeslots-successful-hold
   (let [check (hold-test-check)
-        services (build-test-holding-services check)
+        services (build-test-holding-services {} check)
         response (hold-open-timeslots {:services services})]
     (open-timeslot-held? response)
     (no-exception-to-handle? check)))
